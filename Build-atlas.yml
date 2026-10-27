@@ -1,0 +1,48 @@
+  - name: Find and extract project ZIP
+    shell: bash
+    run: |
+      set -euo pipefail
+      sudo apt-get update
+      sudo apt-get install -y unzip
+      ZIP=$(find . -maxdepth 4 -type f -iname '*Cloud*Build*Package*.zip' -print -quit)
+      if [ -z "$ZIP" ]; then
+        echo "Build ZIP not found in repository"
+        exit 1
+      fi
+      mkdir -p /tmp/atlas
+      unzip -q "$ZIP" -d /tmp/atlas
+      SETTINGS=$(find /tmp/atlas \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
+      if [ -z "$SETTINGS" ]; then
+        echo "Android project not found inside ZIP"
+        exit 1
+      fi
+      PROJECT_DIR=$(dirname "$SETTINGS")
+      cp -a "$PROJECT_DIR"/. .
+
+  - name: Set up Java
+    uses: actions/setup-java@v4
+    with:
+      distribution: temurin
+      java-version: '17'
+
+  - name: Set up Android SDK
+    uses: android-actions/setup-android@v3
+
+  - name: Set up Gradle
+    uses: gradle/actions/setup-gradle@v4
+
+  - name: Build APK
+    run: |
+      if [ -f ./gradlew ]; then
+        chmod +x ./gradlew
+        ./gradlew assembleDebug
+      else
+        gradle assembleDebug
+      fi
+
+  - name: Upload APK
+    uses: actions/upload-artifact@v4
+    with:
+      name: ATLAS-Futurica-debug-APK
+      path: app/build/outputs/apk/debug/*.apk
+      if-no-files-found: error
